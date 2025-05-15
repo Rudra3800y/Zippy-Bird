@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+<div id="gamemonetize-video"></div>
+<script type="text/javascript">
+   window.VIDEO_OPTIONS = {
+       gameid : "j5q8k34qimuwm8su7zfr7i8l7i9ymzqb",
+       width  : "100%",
+       height : "480px",
+       color  : "#3f007e",
+       getAds : "true"  
+   };
+   (function (a, b, c) {
+      var d = a.getElementsByTagName(b)[0];
+      a.getElementById(c) || (a = a.createElement(b), a.id = c, a.src = "https://api.gamemonetize.com/video.js", d.parentNode.insertBefore(a, d))
+   })(document, "script", "gamemonetize-video-api"); 
+</script>
+
+
+</body>
+</html>
