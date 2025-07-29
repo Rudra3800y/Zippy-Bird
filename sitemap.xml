@@ -9,12 +9,27 @@
 
 <url>
   <loc>https://zippybird.netlify.app/</loc>
-  <lastmod>2025-04-28T20:09:51+00:00</lastmod>
+  <lastmod>2025-07-29T22:27:54+00:00</lastmod>
   <priority>1.00</priority>
 </url>
 <url>
+  <loc>https://zippybird.netlify.app/content</loc>
+  <lastmod>2025-07-29T22:27:54+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://zippybird.netlify.app/how-to-play</loc>
+  <lastmod>2025-07-29T22:27:54+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
+  <loc>https://zippybird.netlify.app/blog-top-5-tips</loc>
+  <lastmod>2025-07-29T22:27:54+00:00</lastmod>
+  <priority>0.80</priority>
+</url>
+<url>
   <loc>https://zippybird.netlify.app/about</loc>
-  <lastmod>2025-04-28T20:09:51+00:00</lastmod>
+  <lastmod>2025-07-29T22:27:54+00:00</lastmod>
   <priority>0.80</priority>
 </url>
 
