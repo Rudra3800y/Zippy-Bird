@@ -1,45 +1,82 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8951306614785759"
-     crossorigin="anonymous"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>About Zippy Bird</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-      max-width: 800px;
-      margin: 40px auto;
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
       padding: 20px;
-      background-color: #f9f9f9;
-      color: #333;
     }
+
+    .container {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      padding: 30px;
+      max-width: 700px;
+      border-radius: 15px;
+      box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+    }
+
     h1 {
-      color: #2c3e50;
+      color: #00f5ff;
+      font-size: 2em;
+      margin-bottom: 15px;
+      text-align: center;
     }
-    a {
-      color: #0077cc;
-      text-decoration: none;
+
+    p {
+      line-height: 1.7;
+      font-size: 1rem;
+      color: #e0e0e0;
+      text-align: justify;
     }
-    a:hover {
-      text-decoration: underline;
+
+    footer {
+      text-align: center;
+      margin-top: 30px;
+      font-size: 0.9rem;
+      color: #aaa;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 1.6em;
+      }
+
+      p {
+        font-size: 0.95rem;
+      }
     }
   </style>
 </head>
 <body>
-
-  <h1>About Us</h1>
-
-  <p>Welcome to my little corner of the internet! This website features a fun, lightweight browser game called 
-    <a href="/index.html">Zippy Bird</a> — a tribute to the classic tap-and-dodge gameplay style. 
-    It’s built completely from scratch using <strong>HTML, CSS, and JavaScript</strong> — no fancy game engines, just code and creativity.
-  </p>
-
-  <p>I made <strong>Zippy Bird</strong> as a personal project to improve my web development skills and bring a little fun to anyone who visits. 
-    Whether you're here to beat your high score or just passing time, I hope you enjoy playing as much as I enjoyed building it.
-  </p>
-
-  <p>Feel free to share the game with friends, and don’t forget to flap responsibly! 🐤</p>
+  <div class="container">
+    <h1>About Us</h1>
+    <p>
+      Welcome to my little corner of the internet! This website features a fun, lightweight browser game called <strong>Zippy Bird</strong> — a tribute to the classic tap-and-dodge gameplay style. It’s built completely from scratch using HTML, CSS, and JavaScript — no fancy game engines, just code and creativity.
+    </p>
+    <p>
+      I made Zippy Bird as a personal project to improve my web development skills and bring a little fun to anyone who visits. Whether you're here to beat your high score or just passing time, I hope you enjoy playing as much as I enjoyed building it.
+    </p>
+    <p>
+      Feel free to share the game with friends, and don’t forget to flap responsibly! 🐤
+    </p>
+    <footer>
+      &copy; 2025 Zippy Bird. Built with ❤️ and JavaScript.
+    </footer>
+  </div>
 </body>
 </html>

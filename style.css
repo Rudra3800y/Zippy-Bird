@@ -183,6 +183,9 @@ body {
   transition: opacity 0.4s ease;
 }
 
+.mid-bar {
+  margin: 20px 0 10px;
+}
 
 img{
   height: 100%;
@@ -192,9 +195,6 @@ img{
 }
 
 /*     I N P U T     S T A R T E D     */ 
-.input{
-  margin-top: 12%;
-}
 
 input {
   width: 100%;
