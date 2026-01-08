@@ -1,3 +1,6 @@
+// ========================= ZIPPY BIRD — script.js (Cleaned, No Popups) =========================
+
+// ======= DOM =======
 const game = document.getElementById("game");
 const startScreen = document.getElementById("start-screen");
 const playerNameInput = document.getElementById("player-name");
@@ -11,7 +14,7 @@ const gameOverScreen = document.getElementById("game-over-screen");
 const finalScore = document.getElementById("final-score");
 const bestScore = document.getElementById("best-score");
 const restartBtn = document.getElementById("restart-btn");
-const newGameBtn = document.getElementById("new-game-btn");
+const newGameBtn = document.getElementById("new-game-btn"); 
 
 const leaderboardScreen = document.getElementById("leaderboard-screen");
 const leaderboardList = document.getElementById("leaderboard-list");
@@ -27,267 +30,699 @@ const hitSound = document.getElementById("hit-sound");
 const pointSound = document.getElementById("point-sound");
 const bgMusic = document.getElementById("bg-music");
 
-let birdTop = 200, gravity = 0.27, lift = -5, velocity = 0;
-let isGameOver = false, gameStarted = false;
-let score = 0, highScore = localStorage.getItem("flappyHighScore") || 0;
-let backgroundX = 0, playerName = "", level = 1, pipeSpeed = 2;
+
+// Continue screen DOM
+const continueScreen = document.getElementById("continue-screen");
+const continueBtn = document.getElementById("continue-btn");
+const noThanksBtn = document.getElementById("no-thanks-btn");
+const continueScoreEl = document.getElementById("continue-score");
+const continueLevelEl = document.getElementById("continue-level");
+
+// ======= Constants & Config =======
+const BASE_PIPE_SPEED = 120;
+const RESTART_AD_KEY = "flappyRestartCount";
+const CONTINUE_SECONDS = 5;
+
+const PHYSICS = {
+  GRAVITY: 800,
+  LIFT: -280,
+  PIPE_SPEED: BASE_PIPE_SPEED,
+  BG_SPEED: 30,
+  PIPE_SPAWN_INTERVAL: 1.9,
+  PIPE_SPEED_INCREASE: 20
+};
+
+// ======= State =======
+let birdTop = 200, velocity = 0;
+let isGameOver = false, gameStarted = false, paused = false;
+let score = 0, highScore = Number(localStorage.getItem("flappyHighScore")) || 0;
+let backgroundX = 0, playerName = "Player", level = 1;
 let pipes = [], pipeSpawnTimer = 0;
+let gameLoopId = null, lastTime = 0;
+let isInvincible = false;
 
-scoreDisplay.innerText = `Score: 0 | High Score: ${highScore}`;
-levelDisplay.innerText = `Level: 1`;
+// Level-up system
+let nextLevelScore = 5;
+let currentLevelStep = 1;
 
+// Restart ad counter
+let restartCount = Number(localStorage.getItem(RESTART_AD_KEY)) || 0;
+
+// Banner ad state
+let bannerShown = false;
+let bannerSafetyTimer = null;
+let pageLoadBannerShown = false;
+
+// Continue state
+let continueCountdown = null;
+let continueTimeLeft = CONTINUE_SECONDS;
+
+// ======= Init HUD =======
+if (scoreDisplay) scoreDisplay.innerText = `Score: 0 | High Score: ${highScore}`;
+if (levelDisplay) levelDisplay.innerText = `Level: 1`;
+
+// ======= Helpers =======
+const getGameHeight = () => game?.clientHeight || 600;
+const getBirdHeight = () => bird?.clientHeight || 30;
+function resetPipes() {
+  pipes.forEach(p => {
+    try { if (p.top && p.top.remove) p.top.remove(); } catch(e){}
+    try { if (p.bottom && p.bottom.remove) p.bottom.remove(); } catch(e){}
+  });
+  pipes = [];
+}
+function log(...args){ console.log('[ZIPPY]', ...args); }
+
+// ======= UI toggles =======
 function toggleState(btn, onIcon, offIcon) {
+  if (!btn) return;
   btn.dataset.state = btn.dataset.state === "on" ? "off" : "on";
   btn.textContent = btn.dataset.state === "on" ? onIcon : offIcon;
 }
-
-vibrationBtn.onclick = () => toggleState(vibrationBtn, "📳", "❌📳");
-musicBtn.onclick = () => {
+if (vibrationBtn) vibrationBtn.onclick = () => toggleState(vibrationBtn, "📳", "❌📳");
+if (musicBtn) musicBtn.onclick = () => {
   toggleState(musicBtn, "🎵", "❌🎵");
-  musicBtn.dataset.state === "on" ? bgMusic.play() : bgMusic.pause();
-};
-soundBtn.onclick = () => toggleState(soundBtn, "🔊", "❌🔊");
 
+  if (musicBtn.dataset.state === "on" && gameStarted && !paused) {
+    try {
+      bgMusic.volume = 0.08;   // enforce safe volume
+      bgMusic.play();
+    } catch (e) {
+      log("Music play failed:", e);
+    }
+  } else {
+    try {
+      bgMusic.pause();
+    } catch (e) {
+      log("Music pause failed:", e);
+    }
+  }
+};
+
+if (soundBtn) soundBtn.onclick = () => toggleState(soundBtn, "🔊", "❌🔊");
+
+// ======= Input handlers =======
 function flap() {
-  if (gameStarted && !isGameOver) {
-    velocity = lift;
-    if (vibrationBtn.dataset.state === "on") navigator.vibrate(50);
-    if (soundBtn.dataset.state === "on") {
-      flapSound.currentTime = 0;
-      flapSound.play();
+  if (gameStarted && !isGameOver && !paused) {
+    velocity = PHYSICS.LIFT;
+    if (vibrationBtn && vibrationBtn.dataset.state === "on" && navigator.vibrate) navigator.vibrate(35);
+    if (soundBtn && soundBtn.dataset.state === "on" && flapSound) {
+      try { flapSound.currentTime = 0; flapSound.play(); } catch (e) { log("flap sound play failed:", e); }
     }
   }
 }
-
 document.addEventListener("keydown", (e) => {
   if (e.code === "Space") {
-    e.preventDefault(); // Prevents page from scrolling down
-    flap();
+    e.preventDefault();
+    if (!gameStarted && startBtn && startBtn.onclick) startBtn.onclick();
+    else flap();
   }
 });
-
-const isTouchDevice = 'ontouchstart' in window;
-
-if (isTouchDevice) {
-  game.addEventListener("touchstart", flap, { passive: true });
-} else {
-  game.addEventListener("mousedown", flap);
+const isTouchDevice = "ontouchstart" in window;
+if (game) {
+  game.addEventListener(isTouchDevice ? "touchstart" : "mousedown", (e) => {
+    if (e.target.closest && e.target.closest('button')) return;
+    flap();
+  }, { passive: isTouchDevice });
 }
 
-startBtn.onclick = () => {
-  playerName = playerNameInput.value.trim();
-  if (!playerName) return alert("Please enter your name!");
-  localStorage.setItem("flappyPlayerName", playerName);
-  startScreen.style.display = "none";
-  countdownDisplay.style.display = "block";
+document.addEventListener("DOMContentLoaded", () => {
+  const playerNameInput = document.getElementById("player-name");
+  if (!playerNameInput) {
+    console.error("Player name input not found");
+    return;
+  }
+
+  function generateGuestName() {
+    const randomId = Math.floor(1000 + Math.random() * 9000);
+    return `Player#${randomId}`;
+  }
+
+  let savedName = localStorage.getItem("flappyPlayerName");
+
+  if (!savedName) {
+    savedName = generateGuestName();
+    localStorage.setItem("flappyPlayerName", savedName);
+  }
+
+  playerNameInput.value = savedName;
+
+  playerNameInput.addEventListener("blur", () => {
+    const value = playerNameInput.value.trim();
+    if (value) {
+      localStorage.setItem("flappyPlayerName", value);
+    }
+  });
+});
+
+
+// ======= Start / Countdown / Game =======
+function startCountdown(callback) {
+  if (!countdownDisplay) return callback();
+
+  const howToPlayHint = document.getElementById("how-to-play-hint");
+
+  countdownDisplay.style.display = "flex";
+  countdownDisplay.style.left = "50%";
+  countdownDisplay.style.top = "50%";
+  countdownDisplay.style.transform = "translate(-50%, -50%)";
+
+  // 👉 SHOW hint when countdown starts
+  if (howToPlayHint) howToPlayHint.style.display = "block";
+
   let countdown = 3;
   countdownDisplay.innerText = countdown;
 
-  const countdownInterval = setInterval(() => {
+  const interval = setInterval(() => {
     countdown--;
-    countdownDisplay.innerText = countdown;
-    if (countdown === 0) {
-      clearInterval(countdownInterval);
+    countdownDisplay.innerText = countdown > 0 ? countdown : "Go!";
+
+    if (countdown < 0) {
+      clearInterval(interval);
       countdownDisplay.style.display = "none";
-      startGame();
+
+      // 👉 HIDE hint when game starts
+      if (howToPlayHint) howToPlayHint.style.display = "none";
+
+      callback();
     }
   }, 1000);
-};
-
-restartBtn.onclick = () => {
-  playerName = localStorage.getItem("flappyPlayerName") || "Player";
-  resetGame();
-  startGame(true);
-};
-
-newGameBtn.onclick = () => location.reload();
-
-showLeaderboardBtn.onclick = () => {
-  startScreen.style.display = "none";
-  leaderboardScreen.style.display = "flex";
-};
-
-backBtn.onclick = () => {
-  leaderboardScreen.style.display = "none";
-  startScreen.style.display = "flex";
-};
-
-function startGame(skipCountdown = false) {
-  birdTop = 200; velocity = 0; isGameOver = false;
-  gameStarted = true; score = 0; level = 1; pipeSpeed = 2;
-  pipes.forEach(pipe => { pipe.top.remove(); pipe.bottom.remove(); });
-  pipes = [];
-
-  bird.style.display = "block";
-  scoreDisplay.style.display = "block";
-  levelDisplay.style.display = "block";
-  gameOverScreen.style.display = "none";
-
-  scoreDisplay.innerText = `Score: 0 | High Score: ${highScore}`;
-  levelDisplay.innerText = `Level: 1`;
-
-  if (musicBtn.dataset.state === "on") bgMusic.play();
-  requestAnimationFrame(gameLoop);
 }
 
+
+if (startBtn) {
+  startBtn.addEventListener("click", () => {
+    const typed = playerNameInput?.value?.trim();
+    playerName = typed || localStorage.getItem("flappyPlayerName") || "Player";
+    try { localStorage.setItem("flappyPlayerName", playerName); } catch(e){}
+
+    if (startScreen) startScreen.style.display = "none";
+    startCountdown(startGame);
+  });
+}
+
+// ======= Game functions =======
+function startGame() {
+  if (gameLoopId) cancelAnimationFrame(gameLoopId);
+
+  birdTop = 200;
+  velocity = 0;
+  isGameOver = false;
+  paused = false;
+  gameStarted = true;
+  score = 0;
+  level = 1;
+  nextLevelScore = 5;
+  currentLevelStep = 1;
+  pipeSpawnTimer = 0;
+  resetPipes();
+
+  PHYSICS.PIPE_SPEED = BASE_PIPE_SPEED;
+
+  if (bird) bird.style.display = "block";
+  if (scoreDisplay) scoreDisplay.style.display = "block";
+  if (levelDisplay) levelDisplay.style.display = "block";
+  if (gameOverScreen) gameOverScreen.style.display = "none";
+  if (continueScreen) continueScreen.style.display = "none";
+  if (scoreDisplay) scoreDisplay.innerText = `Score: 0 | High Score: ${highScore}`;
+  if (levelDisplay) levelDisplay.innerText = `Level: 1`;
+
+  if (musicBtn?.dataset?.state === "on" && bgMusic) {
+    try { bgMusic.play(); } catch (e) { log("Background music play failed:", e); }
+  }
+
+  lastTime = 0;
+  gameLoopId = requestAnimationFrame(gameLoop);
+}
+
+// ======= Pipes / Collision / Scoring =======
 function createPipe() {
-  // Adjust gap size based on level
-  const gap = Math.max(100, 160 - level * 5);
-  const topHeight = Math.floor(Math.random() * 250) + 50;
-  const bottomHeight = 600 - topHeight - gap;
-  const pipeX = 400;
+  const containerH = getGameHeight();
+  const gap = Math.max(Math.floor(containerH * 0.25), 120);
+  const topHeight = Math.floor(Math.random() * Math.max(1, containerH - gap - 150)) + 50;
+  const pipeX = (game && game.clientWidth) ? game.clientWidth : 400;
 
   const topPipe = document.createElement("div");
   const bottomPipe = document.createElement("div");
-
   topPipe.className = "pipe top";
   bottomPipe.className = "pipe bottom";
+
   topPipe.style.height = `${topHeight}px`;
-  bottomPipe.style.height = `${bottomHeight}px`;
+  bottomPipe.style.height = `${containerH - topHeight - gap}px`;
   topPipe.style.left = `${pipeX}px`;
   bottomPipe.style.left = `${pipeX}px`;
+  topPipe.style.top = `0px`;
+  bottomPipe.style.top = `${topHeight + gap}px`;
 
-  // Add random rare pipe
-  if (Math.random() < 0.2) {
-    topPipe.classList.add("rare-pipe");
-    bottomPipe.classList.add("rare-pipe");
+  if (game) {
+    game.appendChild(topPipe);
+    game.appendChild(bottomPipe);
   }
 
-  game.appendChild(topPipe);
-  game.appendChild(bottomPipe);
-
-  pipes.push({ top: topPipe, bottom: bottomPipe, x: pipeX, passed: false });
+  pipes.push({ top: topPipe, bottom: bottomPipe, x: pipeX, passed: false, topHeight, gap });
 }
 
-function gameLoop() {
+function gameLoop(currentTime) {
   if (isGameOver) return;
+  if (paused) { gameLoopId = requestAnimationFrame(gameLoop); return; }
 
-  velocity += gravity;
-  birdTop += velocity;
-  if (birdTop > 570 || birdTop < 0) return endGame();
+  if (!lastTime) { lastTime = currentTime; gameLoopId = requestAnimationFrame(gameLoop); return; }
 
-  bird.style.top = birdTop + "px";
-  bird.style.transform = `rotate(${Math.min(velocity * 3, 60)}deg)`;
+  let dt = (currentTime - lastTime) / 1000;
+  lastTime = currentTime;
+  if (dt > 1/30) dt = 1/30;
 
-  backgroundX -= 0.5;
-  game.style.backgroundPosition = `${backgroundX}px 0`;
+  updateGame(dt);
+  gameLoopId = requestAnimationFrame(gameLoop);
+}
 
-  // Wind effect
-  if (level >= 5) {
-    const wind = Math.sin(Date.now() / 500) * 1.5; // subtle sway
-    bird.style.left = `${50 + wind}px`;
+function updateGame(dt) {
+  velocity += PHYSICS.GRAVITY * dt;
+  birdTop += velocity * dt;
+
+  const containerH = getGameHeight();
+  const birdH = getBirdHeight();
+  if (birdTop < 0) { birdTop = 0; velocity = 0; }
+  if (birdTop > containerH - birdH) {
+    if (!isInvincible) { endGame(); return; }
+    else { birdTop = containerH - birdH; velocity = 0; }
   }
 
-  pipeSpawnTimer++;
-  if (pipeSpawnTimer > 120) {
-    createPipe();
-    pipeSpawnTimer = 0;
+  if (bird) {
+    bird.style.top = `${birdTop}px`;
+    bird.style.transform = `rotate(${Math.min(velocity * 0.12, 60)}deg)`;
   }
 
-  pipes.forEach((pipePair, index) => {
-    pipePair.x -= pipeSpeed;
-    pipePair.top.style.left = pipePair.bottom.style.left = pipePair.x + "px";
+  backgroundX -= PHYSICS.BG_SPEED * dt;
+  if (game) game.style.backgroundPosition = `${backgroundX}px 0`;
 
-    // Add vertical wave motion to pipes
-    const waveOffset = Math.sin(Date.now() / 300 + index) * 20;
-    pipePair.top.style.top = `${parseInt(pipePair.top.style.top) + waveOffset}px`;
-    pipePair.bottom.style.top = `${parseInt(pipePair.bottom.style.top) + waveOffset}px`;
+  pipeSpawnTimer += dt;
+  if (pipeSpawnTimer >= PHYSICS.PIPE_SPAWN_INTERVAL) { createPipe(); pipeSpawnTimer = 0; }
 
+  if (bird) {
     const birdRect = bird.getBoundingClientRect();
-    const topRect = pipePair.top.getBoundingClientRect();
-    const bottomRect = pipePair.bottom.getBoundingClientRect();
+    for (let i = pipes.length - 1; i >= 0; i--) {
+      const p = pipes[i];
+      p.x -= PHYSICS.PIPE_SPEED * dt;
+      if (p.top) p.top.style.left = `${p.x}px`;
+      if (p.bottom) p.bottom.style.left = `${p.x}px`;
 
-    if (
-      birdRect.right > topRect.left &&
-      birdRect.left < topRect.right &&
-      (birdRect.top < topRect.bottom || birdRect.bottom > bottomRect.top)
-    ) {
-      return endGame();
-    }
+      const topRect = p.top.getBoundingClientRect();
+      const bottomRect = p.bottom.getBoundingClientRect();
 
-    if (!pipePair.passed && pipePair.x + 60 < 50) {
-      pipePair.passed = true;
-      score++;
-      if (score > highScore) {
-        highScore = score;
-        localStorage.setItem("flappyHighScore", highScore);
-      }
+      const hitTop = birdRect.right > topRect.left && birdRect.left < topRect.right && birdRect.top < topRect.bottom;
+      const hitBottom = birdRect.right > bottomRect.left && birdRect.left < bottomRect.right && birdRect.bottom > bottomRect.top;
+      if ((hitTop || hitBottom) && !isInvincible) { endGame(); return; }
 
-      scoreDisplay.innerText = `Score: ${score} | High Score: ${highScore}`;
-      if (soundBtn.dataset.state === "on") {
-        pointSound.currentTime = 0;
-        pointSound.play();
-      }
+      if (!p.passed && birdRect.left > topRect.right) {
+        p.passed = true;
+        score++;
+        if (score > highScore) { highScore = score; try { localStorage.setItem("flappyHighScore", String(highScore)); } catch(e){} }
+        if (scoreDisplay) scoreDisplay.innerText = `Score: ${score} | High Score: ${highScore}`;
+        if (soundBtn?.dataset?.state === "on" && pointSound) { try { pointSound.currentTime = 0; pointSound.play(); } catch(e){} }
 
-      if (score % 10 === 0) {
-        level++;
-        levelDisplay.innerText = `Level: ${level}`;
-        pipeSpeed += 0.3; // Increase pipe speed with level
+        if (score >= nextLevelScore) {
+          level++;
+          currentLevelStep++;
+          nextLevelScore += 5 * currentLevelStep;
+          if (levelDisplay) levelDisplay.innerText = `Level: ${level}`;
+          PHYSICS.PIPE_SPEED += PHYSICS.PIPE_SPEED_INCREASE;
+        }
       }
     }
-
-    if (pipePair.x + 60 < 0) {
-      pipePair.top.remove();
-      pipePair.bottom.remove();
-      pipes.splice(index, 1);
-    }
-  });
-
-  requestAnimationFrame(gameLoop);
-}
-
-function endGame() {
-  isGameOver = true;
-  if (soundBtn.dataset.state === "on") hitSound.play();
-  bgMusic.pause();
-  finalScore.innerText = `Score: ${score}`;
-  bestScore.innerText = `High Score: ${highScore}`;
-  saveToLeaderboard(playerName, score);
-  gameOverScreen.style.display = "flex";
-}
-
-function saveToLeaderboard(name, score) {
-  let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
-  const index = leaderboard.findIndex(p => p.name === name);
-  if (index !== -1) {
-    if (leaderboard[index].score < score) leaderboard[index].score = score;
-  } else {
-    leaderboard.push({ name, score });
   }
-  localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
-  updateLeaderboardUI(leaderboard);
 }
 
-function updateLeaderboardUI(leaderboard) {
-  leaderboardList.innerHTML = "";
-  leaderboard.sort((a, b) => b.score - a.score);
-  leaderboard.forEach(player => {
+// ========================= ZIPPY BIRD — script.js (Part 2, SDK REMOVED) =========================
+
+// ======= Continue Feature =======
+function showContinueScreen() {
+  if (gameOverScreen) gameOverScreen.style.display = "none";
+  if (continueScreen) continueScreen.style.display = "block";
+  if (noThanksBtn) noThanksBtn.style.display = "none";
+
+  if (continueScoreEl) continueScoreEl.innerText = `Score: ${score}`;
+  if (continueLevelEl) continueLevelEl.innerText = `Level: ${level}`;
+
+  continueTimeLeft = CONTINUE_SECONDS;
+  updateContinueButton();
+
+  if (continueCountdown) {
+    clearInterval(continueCountdown);
+    continueCountdown = null;
+  }
+
+  continueCountdown = setInterval(() => {
+    continueTimeLeft--;
+    updateContinueButton();
+
+    if (continueTimeLeft <= 0) {
+      clearInterval(continueCountdown);
+      continueCountdown = null;
+      if (noThanksBtn) noThanksBtn.style.display = "inline-block";
+    }
+  }, 1000);
+}
+
+function updateContinueButton() {
+  if (continueBtn) continueBtn.textContent = `CONTINUE (${continueTimeLeft})`;
+}
+
+// ======= Continue button logic (SDK-free) =======
+if (continueBtn) {
+  continueBtn.addEventListener("click", () => {
+    // Hide continue screen
+    if (continueScreen) continueScreen.style.display = "none";
+
+    // Pause game before continue flow
+    pauseGame(); // existing pause function
+
+    // Directly move to ready timer (no ads)
+    showReadyTimer();
+  });
+}
+
+// ======= Ready timer / resume flow =======
+function showReadyTimer() {
+  const countdownContainer = document.getElementById("countdown-container");
+  const readyBtn = document.getElementById("ready-btn");
+  const timerDisplay = document.getElementById("timer-display");
+
+  if (!countdownContainer || !readyBtn || !timerDisplay) return;
+
+  countdownContainer.style.display = "block";
+  readyBtn.style.display = "inline-block";
+
+  let timer = 3;
+  timerDisplay.textContent = timer;
+
+  const resume = () => {
+    countdownContainer.style.display = "none";
+    readyBtn.style.display = "none";
+    resumeAfterContinue(); // existing resume function
+  };
+
+  readyBtn.onclick = () => {
+    readyBtn.style.display = "none";
+
+    const endTime = Date.now() + timer * 1000;
+
+    function tick() {
+      const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+      timerDisplay.textContent = remaining;
+
+      if (remaining > 0) {
+        requestAnimationFrame(tick);
+      } else {
+        resume();
+      }
+    }
+
+    tick();
+  };
+}
+
+// Example of a proper resume function
+function resumeGameLoop() {
+  gamePaused = false; // your global pause flag
+  lastFrameTime = performance.now(); // reset timing to avoid jumps
+
+  // If you use requestAnimationFrame for the game loop:
+  if (!gameLoopRunning) {
+    gameLoopRunning = true;
+    requestAnimationFrame(gameLoop); // restart the loop
+  }
+}
+
+if (noThanksBtn) {
+  noThanksBtn.addEventListener("click", () => {
+    if (continueCountdown) { clearInterval(continueCountdown); continueCountdown = null; }
+    if (continueScreen) continueScreen.style.display = "none";
+    finalizeGameOver();
+  });
+}
+
+function resumeAfterContinue() {
+  isGameOver = false;
+  paused = false;
+  gameStarted = true;
+
+  birdTop = Math.max(10, birdTop - 40);
+  velocity = 0;
+  if (bird) { bird.style.display = "block"; bird.style.top = `${birdTop}px`; }
+
+  // Shift pipes forward
+  try {
+    const safeDistance = 150;
+    const gameRect = game.getBoundingClientRect();
+    const birdRect = bird.getBoundingClientRect();
+    const birdLocalX = birdRect.left - gameRect.left;
+
+    for (let i = pipes.length - 1; i >= 0; i--) {
+      const p = pipes[i];
+      if (p && typeof p.x === 'number') {
+        if (p.x < birdLocalX + safeDistance) {
+          try { if (p.top) p.top.remove(); } catch(e){}
+          try { if (p.bottom) p.bottom.remove(); } catch(e){}
+          pipes.splice(i, 1);
+          continue;
+        }
+        p.x += 80;
+        if (p.top) p.top.style.left = `${p.x}px`;
+        if (p.bottom) p.bottom.style.left = `${p.x}px`;
+      }
+    }
+  } catch(e) { log("Error shifting pipes:", e); }
+
+  isInvincible = true;
+  setTimeout(() => { isInvincible = false; }, 3000);
+
+  if (scoreDisplay) { scoreDisplay.style.display = "block"; scoreDisplay.innerText = `Score: ${score} | High Score: ${highScore}`; }
+  if (levelDisplay) { levelDisplay.style.display = "block"; levelDisplay.innerText = `Level: ${level}`; }
+
+  if (musicBtn?.dataset?.state === "on" && bgMusic) { try { bgMusic.play(); } catch(e){} }
+
+  // Start game loop
+  lastTime = 0;
+  gameLoopId = requestAnimationFrame(gameLoop);
+}
+
+
+
+// ======= Final Game Over =======
+function finalizeGameOver() {
+  isGameOver = true;
+  paused = false;
+  if (gameLoopId) cancelAnimationFrame(gameLoopId);
+
+  if (soundBtn?.dataset?.state === "on" && hitSound) {
+    try { hitSound.play(); } catch (e) {}
+  }
+  if (bgMusic) {
+    try { bgMusic.pause(); } catch (e) {}
+  }
+
+  if (finalScore) finalScore.innerText = `Score: ${score}`;
+  if (bestScore) bestScore.innerText = `High Score: ${highScore}`;
+  saveToLeaderboard(playerName, score);
+  if (gameOverScreen) gameOverScreen.style.display = "flex";
+}
+
+// ======= End Game Trigger =======
+function endGame() {
+  if (isGameOver) return;
+  isGameOver = true;
+  if (gameLoopId) cancelAnimationFrame(gameLoopId);
+
+  if (soundBtn?.dataset?.state === "on" && hitSound) {
+    try { hitSound.play(); } catch (e) {}
+  }
+  if (bgMusic) {
+    try { bgMusic.pause(); } catch (e) {}
+  }
+
+  showContinueScreen();
+}
+
+function updateGameOverLeaderboard() {
+  const list = document.getElementById("gameover-leaderboard-list");
+  if (!list) return;
+
+  list.innerHTML = "";
+
+  let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
+
+  leaderboard = leaderboard
+    .filter(p => p.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+
+  leaderboard.forEach((p, i) => {
     const li = document.createElement("li");
-    li.innerText = `${player.name}: ${player.score}`;
+    li.innerText = `${i + 1}. ${p.name} - ${p.score}`;
+    list.appendChild(li);
+  });
+}
+
+updateGameOverLeaderboard();
+
+
+// ======= Leaderboard =======
+function saveToLeaderboard(name, scoreVal) {
+  if (!name || name.trim() === "") return;
+  if (!Number.isFinite(scoreVal) || scoreVal <= 0) return;
+
+  name = name.trim();
+
+  let leaderboard = [];
+  try {
+    leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
+  } catch (e) {
+    leaderboard = [];
+  }
+
+  const idx = leaderboard.findIndex(
+    p => p.name.toLowerCase() === name.toLowerCase()
+  );
+
+  if (idx !== -1) {
+    if (scoreVal > leaderboard[idx].score) {
+      leaderboard[idx].score = scoreVal;
+    }
+  } else {
+    leaderboard.push({ name, score: scoreVal });
+  }
+
+  leaderboard.sort((a, b) => b.score - a.score);
+  leaderboard = leaderboard.slice(0, 10);
+
+  try {
+    localStorage.setItem("leaderboard", JSON.stringify(leaderboard));
+  } catch (e) {}
+}
+
+function updateLeaderboardUI() {
+  if (!leaderboardList) return;
+
+  leaderboardList.innerHTML = "";
+
+  let leaderboard = [];
+  try {
+    leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
+  } catch (e) {
+    leaderboard = [];
+  }
+
+  leaderboard.forEach((p, index) => {
+    const li = document.createElement("li");
+    li.textContent = `${index + 1}. ${p.name} - ${p.score}`;
     leaderboardList.appendChild(li);
   });
 }
 
-function resetGame() {
-  birdTop = 200;
-  velocity = 0;
-  pipes.forEach(pipe => {
-    pipe.top.remove();
-    pipe.bottom.remove();
+function updateMainLeaderboardUI() {
+  const list = document.getElementById("leaderboard-list");
+  if (!list) return;
+
+  list.innerHTML = "";
+
+  let leaderboard = JSON.parse(localStorage.getItem("leaderboard")) || [];
+
+  leaderboard = leaderboard
+    .filter(p => p.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 10);
+
+  leaderboard.forEach((p, i) => {
+    const li = document.createElement("li");
+    li.innerText = `${i + 1}. ${p.name} - ${p.score}`;
+    list.appendChild(li);
   });
-  pipes = [];
 }
 
-window.onload = function() {
-  // Hide the loader
-  setTimeout(function() {
-    const loader = document.getElementById('loader');
-    if (loader) loader.style.display = 'none';
-  }, 500);
+updateMainLeaderboardUI();
 
-  // Initialize leaderboard
-  leaderboardScreen.style.display = "none";
-  const savedBoard = JSON.parse(localStorage.getItem("leaderboard")) || [];
-  updateLeaderboardUI(savedBoard);
+
+// ======= Restart & Main Menu buttons =======
+if (restartBtn) {
+  restartBtn.addEventListener("click", () => {
+    restartCount++;
+    try { localStorage.setItem(RESTART_AD_KEY, restartCount); } catch(e){}
+
+    // SDK REMOVED: no ad shown
+
+    if (gameOverScreen) gameOverScreen.style.display = "none";
+    startCountdown(startGame);
+  });
+}
+
+if (newGameBtn) {
+  newGameBtn.addEventListener("click", () => {
+    restartCount++;
+    try { localStorage.setItem(RESTART_AD_KEY, restartCount); } catch(e){}
+
+    // SDK REMOVED: no ad shown
+
+    if (startScreen) startScreen.style.display = "flex";
+    if (gameOverScreen) gameOverScreen.style.display = "none";
+    resetGame();
+  });
+}
+
+// ======= SDK banner functions REMOVED =======
+// showBannerAd() → removed
+// hideBannerAd() → removed
+
+// ======= Init =======
+window.onload = function() {
+  const loader = document.getElementById("loader");
+  if (loader) loader.style.display = "none";
+  if (leaderboardScreen) leaderboardScreen.style.display = "none";
+  if (gameOverScreen) gameOverScreen.style.display = "none";
+  if (continueScreen) continueScreen.style.display = "none";
+  updateLeaderboardUI();
+
+  // ======= SDK banner logic REMOVED =======
+  // showBannerAfterFirstInteraction()
+  // click / touch listeners for ads
 };
 
+// ======= Pause/Resume =======
+function pauseGame() {
+  if (isGameOver || paused || !gameStarted) return;
+  paused = true;
+  if (bgMusic) try { bgMusic.pause(); } catch (e) {}
+  lastTime = 0;
+}
+
+function resumeGame() {
+  if (isGameOver || !gameStarted || !paused) return;
+  paused = false;
+  if (musicBtn?.dataset?.state === "on" && bgMusic) {
+    try { bgMusic.play(); } catch (e) {}
+  }
+  gameLoopId = requestAnimationFrame(gameLoop);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) pauseGame();
+  else setTimeout(() => { resumeGame(); }, 100);
+});
+
+// ======= Leaderboard button handlers =======
+if (showLeaderboardBtn) {
+  showLeaderboardBtn.addEventListener("click", () => {
+    if (startScreen) startScreen.style.display = "none";
+    if (gameOverScreen) gameOverScreen.style.display = "none";
+    if (continueScreen) continueScreen.style.display = "none";
+    if (leaderboardScreen) leaderboardScreen.style.display = "flex";
+    updateLeaderboardUI();
+  });
+}
+
+if (backBtn) {
+  backBtn.addEventListener("click", () => {
+    if (leaderboardScreen) leaderboardScreen.style.display = "none";
+    if (startScreen) startScreen.style.display = "flex";
+  });
+}
