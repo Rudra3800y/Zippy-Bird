@@ -719,6 +719,15 @@ a{
   transition: transform 0.2s;
 }
 
+/* Mobile only – slight reduction */
+@media (max-width: 480px) {
+  #bird {
+    width: 36px;   /* 10% smaller */
+    height: 45px;  /* keep proportions */
+  }
+}
+
+
 /*     P I P E     */ 
 
 .pipe {
@@ -959,13 +968,31 @@ a{
 
 #how-to-play-hint {
   position: absolute;
-  top: 34%;              /* ⬅ higher than countdown */
+  top: 34%;                 /* stays above countdown */
   left: 50%;
   transform: translate(-50%, -50%);
+
+  /* Text */
   color: #fff;
   font-size: 15px;
-  opacity: 0.8;
+  font-weight: 600;
+  white-space: nowrap;      /* ✅ force single line */
+
+  /* Visibility */
+  background: rgba(0, 0, 0, 0.45); /* ✅ readable on light bg */
+  padding: 6px 12px;
+  border-radius: 12px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+
+  opacity: 0.95;            /* ⬅ stronger than before */
   pointer-events: none;
   display: none;
-  z-index: 10;           /* ⬅ above background */
+  z-index: 10;
+}
+
+@media (max-width: 480px) {
+  #how-to-play-hint {
+    font-size: 14px;        /* slightly smaller */
+    padding: 5px 10px;
+  }
 }

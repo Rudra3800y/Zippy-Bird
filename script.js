@@ -24,6 +24,8 @@ const scoreDisplay = document.getElementById("score");
 const levelDisplay = document.getElementById("level-display");
 const countdownDisplay = document.getElementById("countdown");
 const bird = document.getElementById("bird");
+const BIRD_HITBOX_PADDING =
+  window.innerWidth < 480 ? 5 : 6;
 
 const flapSound = document.getElementById("flap-sound");
 const hitSound = document.getElementById("hit-sound");
@@ -122,15 +124,43 @@ if (musicBtn) musicBtn.onclick = () => {
 if (soundBtn) soundBtn.onclick = () => toggleState(soundBtn, "🔊", "❌🔊");
 
 // ======= Input handlers =======
+
+function doVibration(ms) {
+  if (
+    vibrationBtn &&
+    vibrationBtn.dataset.state === "on" &&
+    "vibrate" in navigator
+  ) {
+    navigator.vibrate(ms);
+  }
+}
+
+document.addEventListener("touchstart", handleInput, { passive: true });
+document.addEventListener("mousedown", handleInput);
+document.addEventListener("keydown", (e) => {
+  if (e.code === "Space") handleInput();
+});
+
+function handleInput() {
+  if (!gameStarted || isGameOver || paused) return;
+
+  doVibration(35);     // ✅ vibration allowed here
+  flap();              // game logic only
+}
+
 function flap() {
-  if (gameStarted && !isGameOver && !paused) {
-    velocity = PHYSICS.LIFT;
-    if (vibrationBtn && vibrationBtn.dataset.state === "on" && navigator.vibrate) navigator.vibrate(35);
-    if (soundBtn && soundBtn.dataset.state === "on" && flapSound) {
-      try { flapSound.currentTime = 0; flapSound.play(); } catch (e) { log("flap sound play failed:", e); }
+  velocity = PHYSICS.LIFT;
+
+  if (soundBtn && soundBtn.dataset.state === "on" && flapSound) {
+    try {
+      flapSound.currentTime = 0;
+      flapSound.play();
+    } catch (e) {
+      log("flap sound play failed:", e);
     }
   }
 }
+
 document.addEventListener("keydown", (e) => {
   if (e.code === "Space") {
     e.preventDefault();
@@ -320,7 +350,16 @@ function updateGame(dt) {
   if (pipeSpawnTimer >= PHYSICS.PIPE_SPAWN_INTERVAL) { createPipe(); pipeSpawnTimer = 0; }
 
   if (bird) {
-    const birdRect = bird.getBoundingClientRect();
+    const rect = bird.getBoundingClientRect();
+
+const birdRect = {
+  left: rect.left + BIRD_HITBOX_PADDING,
+  right: rect.right - BIRD_HITBOX_PADDING,
+  top: rect.top + BIRD_HITBOX_PADDING,
+  bottom: rect.bottom - BIRD_HITBOX_PADDING
+};
+
+
     for (let i = pipes.length - 1; i >= 0; i--) {
       const p = pipes[i];
       p.x -= PHYSICS.PIPE_SPEED * dt;
