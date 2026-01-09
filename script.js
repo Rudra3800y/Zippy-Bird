@@ -55,7 +55,6 @@ const PHYSICS = {
   PIPE_SPEED_INCREASE: 20
 };
 
-velocity = Math.max(velocity, PHYSICS.LIFT);
 
 
 // ======= State =======
