@@ -123,8 +123,9 @@ if (musicBtn) musicBtn.onclick = () => {
 
 if (soundBtn) soundBtn.onclick = () => toggleState(soundBtn, "🔊", "❌🔊");
 
-// ======= Input handlers =======
+// ================= INPUT HANDLERS =================
 
+// --- Utility: vibration ---
 function doVibration(ms) {
   if (
     vibrationBtn &&
@@ -135,20 +136,70 @@ function doVibration(ms) {
   }
 }
 
-document.addEventListener("touchstart", handleInput, { passive: true });
-document.addEventListener("mousedown", handleInput);
-document.addEventListener("keydown", (e) => {
-  if (e.code === "Space") handleInput();
-});
+// --- Anti double-fire lock ---
+let lastInputTime = 0;
+const INPUT_COOLDOWN = 80; // ms
 
-function handleInput() {
-  if (!gameStarted || isGameOver || paused) return;
-
-  doVibration(35);     // ✅ vibration allowed here
-  flap();              // game logic only
+function canAcceptInput() {
+  const now = Date.now();
+  if (now - lastInputTime < INPUT_COOLDOWN) return false;
+  lastInputTime = now;
+  return true;
 }
 
+// --- Core input handler (ALL inputs end here) ---
+function handleGameInput(e) {
+  // Prevent unwanted defaults (space scroll, etc.)
+  if (e?.type === "keydown") e.preventDefault();
+
+  // Ignore if game not playable
+  if (!gameStarted || isGameOver || paused) return;
+
+  // Anti double-fire
+  if (!canAcceptInput()) return;
+
+  doVibration(35);
+  flap();
+}
+
+// ================= INPUT SOURCES =================
+
+// --- Touch handling (mobile) ---
+let isTouchRecently = false;
+
+game.addEventListener(
+  "touchstart",
+  (e) => {
+    isTouchRecently = true;
+    handleGameInput(e);
+    setTimeout(() => (isTouchRecently = false), 300);
+  },
+  { passive: false }
+);
+
+// --- Mouse handling (desktop) ---
+game.addEventListener("mousedown", (e) => {
+  // Prevent ghost mouse after touch
+  if (isTouchRecently) return;
+
+  // Ignore UI buttons
+  if (e.target.closest && e.target.closest("button")) return;
+
+  game.focus(); // ensure keyboard works after click
+  handleGameInput(e);
+});
+
+// --- Keyboard handling (FOCUSED GAME ONLY) ---
+game.addEventListener("keydown", (e) => {
+  if (e.code !== "Space") return;
+  handleGameInput(e);
+});
+
+// ================= GAME ACTION =================
+
 function flap() {
+  console.count("FLAP"); // Debug: should increment by 1 per input
+
   velocity = PHYSICS.LIFT;
 
   if (soundBtn && soundBtn.dataset.state === "on" && flapSound) {
@@ -156,25 +207,26 @@ function flap() {
       flapSound.currentTime = 0;
       flapSound.play();
     } catch (e) {
-      log("flap sound play failed:", e);
+      console.warn("Flap sound failed:", e);
     }
   }
 }
 
-document.addEventListener("keydown", (e) => {
-  if (e.code === "Space") {
-    e.preventDefault();
-    if (!gameStarted && startBtn && startBtn.onclick) startBtn.onclick();
-    else flap();
-  }
+// ================= FOCUS MANAGEMENT =================
+
+// Ensure keyboard input always works
+game.setAttribute("tabindex", "0");
+
+game.addEventListener("mousedown", () => {
+  game.focus();
 });
-const isTouchDevice = "ontouchstart" in window;
-if (game) {
-  game.addEventListener(isTouchDevice ? "touchstart" : "mousedown", (e) => {
-    if (e.target.closest && e.target.closest('button')) return;
-    flap();
-  }, { passive: isTouchDevice });
+
+// Call this inside startGame()
+function focusGame() {
+  game.focus();
 }
+
+// ================= PLAYER NAME LOGIC =================
 
 document.addEventListener("DOMContentLoaded", () => {
   const playerNameInput = document.getElementById("player-name");
@@ -207,8 +259,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 // ======= Start / Countdown / Game =======
+
+
+
 function startCountdown(callback) {
   if (!countdownDisplay) return callback();
+   game.focus();
 
   const howToPlayHint = document.getElementById("how-to-play-hint");
 
@@ -242,6 +298,7 @@ function startCountdown(callback) {
 
 if (startBtn) {
   startBtn.addEventListener("click", () => {
+     game.focus();
     const typed = playerNameInput?.value?.trim();
     playerName = typed || localStorage.getItem("flappyPlayerName") || "Player";
     try { localStorage.setItem("flappyPlayerName", playerName); } catch(e){}
@@ -260,6 +317,7 @@ function startGame() {
   isGameOver = false;
   paused = false;
   gameStarted = true;
+  game.focus(); 
   score = 0;
   level = 1;
   nextLevelScore = 5;
