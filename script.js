@@ -31,6 +31,7 @@ const flapSound = document.getElementById("flap-sound");
 const hitSound = document.getElementById("hit-sound");
 const pointSound = document.getElementById("point-sound");
 const bgMusic = document.getElementById("bg-music");
+const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 
 // Continue screen DOM
@@ -47,12 +48,15 @@ const CONTINUE_SECONDS = 5;
 
 const PHYSICS = {
   GRAVITY: 800,
-  LIFT: -280,
+  LIFT: IS_MOBILE ? -230 : -280,
   PIPE_SPEED: BASE_PIPE_SPEED,
   BG_SPEED: 30,
   PIPE_SPAWN_INTERVAL: 1.9,
   PIPE_SPEED_INCREASE: 20
 };
+
+velocity = Math.max(velocity, PHYSICS.LIFT);
+
 
 // ======= State =======
 let birdTop = 200, velocity = 0;
